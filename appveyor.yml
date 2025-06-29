@@ -1,0 +1,59 @@
+image:
+- Visual Studio 2017
+environment:
+  nodejs_version: "11"
+  appveyor_build_worker_cloud: gce
+  BUILD_ARCH: win
+  matrix:
+    - BUILD_NODE_VERSION: 12.2.0
+platform:
+  - x64
+
+configuration:
+  - Release
+
+branches:
+  only:
+    - master
+
+matrix:
+  fast_finish: true
+
+cache:
+  - '%UserProfile%\.m2'
+  - tmp -> appveyor.yml, build.boot
+  - '%LOCALAPPDATA%/Yarn -> yarn.lock'
+  - '%APPDATA%/Yarn -> yarn.lock'
+  - '%APPDATA%\npm-cache -> yarn.lock'
+  - node_modules -> yarn.lock
+  - '%SystemRoot%\boot.exe -> boot.properties'
+  - '%UserProfile%\.boot\cache\lib -> boot.properties'
+  - '%UserProfile%\.boot\cache\bin -> boot.properties'
+
+install:
+  - ps: Install-Product node $env:nodejs_version x64
+  # Install NASM
+  - curl -L -o nasm.exe https://www.nasm.us/pub/nasm/releasebuilds/2.14.02/win64/nasm-2.14.02-installer-x64.exe
+  - start /wait nasm.exe /S
+  - ps: $env:path="C:\Program Files\nasm;$($env:path)"
+  - npm install -g npm@latest
+  - npm install -g yarn
+  - set PATH=%APPDATA%\npm;%PATH%
+  - yarn install
+  - ps: wget 'https://github.com/boot-clj/boot-bin/releases/download/latest/boot.exe' -OutFile "$pwd\boot.exe"
+  - cmd: 'move boot.exe %SystemRoot%'
+
+test_script:
+  - yarn lint
+  - yarn type:check
+  - yarn test
+  - boot test
+  - boot release-ci
+  - cmd: scripts/test-build.bat
+
+artifacts:
+  - path: build
+    name: lumo-$(BUILD_ARCH)-node-v$(BUILD_NODE_VERSION)
+
+# Don't actually build (MSBuild).
+build: off
